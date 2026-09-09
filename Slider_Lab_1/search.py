@@ -1,10 +1,27 @@
 import sys; args=sys.argv[1:]
 import time
 
+def inversions(start,goal): #return true if same parity, false if different
+  start_no_underscore=start[:start.index("_")]+start[start.index("_")+1:] #gets a string for both the start and goal without the underscore
+  goal_no_underscore=goal[:goal.index("_")]+goal[goal.index("_")+1:]
+  inversions_start=0 #sets up counters for each states inversions
+  inversions_goal=0
+  for i,element in enumerate(goal_no_underscore): #simple nested loop that counts how many elements to the right of a certain element are less than, inversion
+    for element_slice in goal_no_underscore[i:]:
+      if element<element_slice:
+        inversions_goal+=1
+
+  for i,element in enumerate(start_no_underscore):#simple nested loop that counts how many elements to the right of a certain element are less than, inversion
+    for element_slice in start_no_underscore[i:]:
+      if element<element_slice:
+        inversions_start+=1
+  
+  return inversions_start%2==inversions_goal%2 #returns if both are even or both are odd, ie parity 
+
 def dimensions(num:int):
  divisor = 1 #tracks the divisor
  factors=[] #list of factors
- 
+
  while divisor <=num: # factors of a number must be less than or equal to the number, hence the while loop check
   quotient = num/divisor #gets the quotient of number and divisor
   if int(quotient)+.0==quotient: # checks if the quotient has decimal values of .0
@@ -137,6 +154,12 @@ width,height=dimensions(length) # get the dimension of the grid using a custom h
 time_start=time.time()
 
 if __name__=="__main__": # executes code below
- print_bands(BFS(start,goal)) # prints the BFS result of the inputs
+  if not inversions(start,goal): #if different parity, no solution should be found
+    time_end=time.time()-time_start
+    if time_end<0.001: #make sure 3 sig figs
+      time_end=0.000
+    print_bands(([start],f"{time_end:#.3g}s",-1)) #prints only the start, the time, and the steps associated with no solution
+  else:#same parity, solution exists, so call method to find the path to the goal state
+    print_bands(BFS(start,goal)) # prints the BFS result of the inputs
 
 # Charlie Price, 4, 2028
