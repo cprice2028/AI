@@ -36,133 +36,121 @@ def dimensions(num:int):
     
  return (smallest_w,current_height)#return tuple of the dimensions
 
-def neighbors(puzzle): #returns a list of the neighbors of the puzzle
- neighbor_list=[]
- under_index=puzzle.index("_")
- if under_index-1>=0 and (under_index-1)//HEIGHT==under_index//HEIGHT: #checks if the move left is legal,  it must stay within grid and not change height
-  neighbor_list.append(neighbor_string(puzzle,under_index,under_index-1)) #calls helper method, then adds the neighbor state to list
- 
- if under_index+1<(length:=len(puzzle)) and (under_index+1)//HEIGHT==under_index//HEIGHT: # checks if right move is legal, it must stay within grid and not change height
-  neighbor_list.append(neighbor_string(puzzle,under_index,under_index+1))
- 
- if under_index+WIDTH<length: # if the move down is within grid
-  neighbor_list.append(neighbor_string(puzzle,under_index,under_index+WIDTH))
- 
- if under_index-WIDTH>=0: # if move up is within grid
-   neighbor_list.append(neighbor_string(puzzle,under_index,under_index-WIDTH))
-   
- return neighbor_list
+def neighbors(puzzle):
+  upos=puzzle.index("_")
+  return [neighbor_string(puzzle,upos,nbrpos) for nbrpos in NBRS[upos]] #list comprehension of all possible neighbors given the neighbors switch indeces in the lookup table
 
 def neighbor_string(puzzle, under_index, switch_index):
   lst=[*puzzle]
-  lst[under_index],lst[switch_index]=lst[switch_index],lst[under_index]
-  return "".join(lst)
-'''def BFS(start,goal): #bfs algorithm method
+  lst[under_index],lst[switch_index]=lst[switch_index],lst[under_index]#switches
+  return ("".join(lst),under_index,switch_index)#returns tuple, neighbor string, the tiles new index, the tiles old index
 
- if start == goal: #if the start is the same as the goal, return the start, time, and 0 steps
-  return ([start],[start])
- 
- parseMe=[start] #initialize the nodes to get the neighbors of
- dctSeen={start:""} #dictionary of nodes that have been passed, the value is the parent
- 
- for node in parseMe: #while parseMe is not empty # removes the first index of parseMe and stores it in node
- #while parseMe:
-  #node = parseMe.pop(0)
-  for nbr in [n for n in neighbors(node) if n not in dctSeen]: #simple list comprehensions of neighbors not in dictionary of seen nodes
-   if nbr == goal: #if a neighbor equals goal
-    path=[goal] #start the path at the goal
-    parent=node # the first parent should be "node", the parent of the goal
-    
-    while path[-1]!=start: # while the last index of the list is not start
-     path.append(parent) #append parents, traversing up the tree
-     parent=dctSeen[parent] #set the parent to the current nodes parent
-    
-    
-    return ([start],path[::-1])# because we appended parents sequentially, we need to reverse to list to have the start node as index 0, we then return this as a tuple with index 0 being the list, index 1 being the time it took formatted to 3 significant digits, and index 2 being the amount of steps
-   parseMe.append(nbr) #if the current neighbor isnt the goal, we need to add it to the list of nodes we need to process
-   dctSeen[nbr]=node #because we only loop through nodes not in dictionary, we can add the neighbor as a key and the value as its parent
-   
- return ([start],[start]) #this will only be reached if no goal is found, defaulting to the required start position, the time it took, and steps of -1 as a tuple
-'''
 def aStar(root,goal):
-  if not possible(root,goal):
+  if not possible(root,goal): #checks inversions, if not possible return a path of "X"
     return (root,"X")
-  starting_f=f_distance(root,goal,0)
-  starting_h=h_distance(root,goal)
-  openSet=[(starting_f,starting_h,root,"-1")]
-  closedSet={}
+  starting_f=f_distance(root,goal,0) #finds f distance of the start
+  starting_h=starting_f # starting f distance is just h because g is 0. (f=g+h) if g=0 because its at the root, then f=0+h, f=h
+  openSet = [[] for _ in range(90)] # creates 90 buckets, as 90 is the max f value
+  openSet[starting_f].append((starting_f,starting_h,root,"-1")) #start the openset with all starting values
+  closedSet={} #closed set of parents as values
+  cur_f=starting_f #the current f is just the starting f at the start
   while True:
-    openSet.sort()
-    lowest_f_tuple=openSet.pop(0)
-    lowest_f,lowest_f_h,lowest_f_puzzle,lowest_f_parent=lowest_f_tuple
-    if lowest_f_puzzle in closedSet:
+    lowest_f,lowest_f_h,lowest_f_puzzle,lowest_f_parent=openSet[cur_f].pop() #gets all tuple values from the current f index, doesnt matter which tuple is popped as they have the same f value
+    if lowest_f_puzzle in closedSet: #if the puzzle state has already been discovered
+      cur_f=find_best_f(openSet,cur_f) #update current f and continue
       continue
-    closedSet[lowest_f_puzzle]=lowest_f_parent
-    if lowest_f_puzzle==goal:
-      path=[goal] #start the path at the goal
-      parent=lowest_f_puzzle # the first parent should be "node", the parent of the goal
-      
-      while path[-1]!=root: # while the last index of the list is not start
-        path.append(parent) #append parents, traversing up the tree
-        parent=closedSet[parent] #set the parent to the current nodes parent
-      return (root,path[::-1])
-    for nbr in neighbors(lowest_f_puzzle):
-      newF = lowest_f-lowest_f_h +1 + (newH:=h_distance(nbr,goal))
-      if nbr not in closedSet:
-        openSet.append((newF, newH, nbr, lowest_f_puzzle))
+    closedSet[lowest_f_puzzle]=lowest_f_parent # so now we have a parent for the current puzzle, we can add it to the closedSet
+    if lowest_f_puzzle==goal: #if we found the goal
+      return reconstruct_path(closedSet,lowest_f_puzzle,root) #return the path list, calling the method
+    for nbr,new_index,old_index in neighbors(lowest_f_puzzle):#get the neighbors of the current puzzle
+      if nbr not in closedSet: #if we haveent already discovered the neighbor
+        newH = lowest_f_h - H_TABLE[nbr[new_index]][old_index] + H_TABLE[nbr[new_index]][new_index] #calculate the new h, which is the previous h value - what the moved tile previously contributed to h + what the moved tile is now contributing to h
+        newF = lowest_f-lowest_f_h + 1 + newH #calculate new F, so current f - current H gets current g. if you add one to the g and add the new H, you get the accurate new F value
+        openSet[newF].append((newF, newH, nbr, lowest_f_puzzle))#now in the new fs bucket add the neighbor and its corresponding elements
+    cur_f=find_best_f(openSet,cur_f) #find next f
 
-    
+def reconstruct_path(closedSet,lowest_f_puzzle,root):
+  path=[goal] #start the path at the goal
+  parent=lowest_f_puzzle # the first parent should be "node", the parent of the goal
+  while path[-1]!=root: # while the last index of the list is not start
+    path.append(parent) #append parents, traversing up the tree
+    parent=closedSet[parent] #set the parent to the current nodes parent
+  return (root,path[::-1]) #return the tuple of start and path
+def find_best_f(openSet,cur_f): #this method just gets the next lowest f value in the openset
+  cur_f_loop=True
+  cur_f_counter=cur_f
+  while cur_f_loop: 
+    if openSet[cur_f_counter]!=[]: #finds the next lowest cur_f, so starting at cur_f it increments the index until there is a populated bucket
+      cur_f=openSet[cur_f_counter][0][0]
+      cur_f_loop=False
+    cur_f_counter+=1
+  return cur_f #returns the new lowest f
+
 def f_distance(pzl,goal,steps):
-  h=h_distance(pzl[:pzl.index("_")]+pzl[pzl.index("_")+1:],goal[:goal.index("_")]+goal[goal.index("_")+1:])
+  h=h_distance(pzl,goal)
   return steps+h
 def h_distance(pzl,goal):
   h_counter=0
-  for i in range(len(pzl)):
-    i_val=pzl[i]
-    goal_i=goal.index(i_val)
-    row_i,col_i=(i//WIDTH,i%WIDTH)
-    row_goal,col_goal=(goal_i//WIDTH,goal_i%WIDTH)
-    h_counter+=abs(row_goal-row_i)+abs(col_goal-col_i)
+  for i,char in enumerate(pzl): #for every character in puzzle
+    if char=="_": #skips the underscore
+      continue
+    h_counter+=H_TABLE[char][i] #gets the initial displacement of all tiles
   return h_counter
-    
+
+def build_h_table(goal):
+  h_table = {}
+  for char in goal: #for every character in the goal state
+      if char == "_": #no need for the underscore h value
+          continue
+      h_table[char] = {}
+      for i in range(len(goal)): # for every characters unique index in the length
+          h_table[char][i] = abs(GOAL_POS_CHARS[char][0]-i//WIDTH) +abs(GOAL_POS_CHARS[char][1]-i%WIDTH)  #gets the distance between the goal position of the tile and tile at a certain index in the puzzle, precomupetes every h needed
+  return h_table
+
+def build_nbrs():
+  dctNbrs={}
+  for i in range(WIDTH*HEIGHT):
+    dctNbrs[i]=[]
+    if i-1>=0 and (i-1)//HEIGHT==i//HEIGHT: #checks if the move left is legal,  it must stay within grid and not change height
+      dctNbrs[i].append(i-1)
+    if i+1<(length:=WIDTH*HEIGHT) and (i+1)//HEIGHT==i//HEIGHT: # checks if right move is legal, it must stay within grid and not change height
+      dctNbrs[i].append(i+1)
+    if i+WIDTH<length: # if the move down is within grid
+      dctNbrs[i].append(i+WIDTH)
+    if i-WIDTH>=0: # if move up is within grid
+      dctNbrs[i].append(i-WIDTH)
+  return dctNbrs #returns the lookup table
+
 def DRUL(vals): #prints results
     start,path=vals
     moves=[]
-    if path!="X":
-      if [start]!=path:
-        for i,step in enumerate(path[:-1]):
-            under_index=path[i+1].index("_")
-            prev_under_index=path[i].index("_")
-            difference=under_index-prev_under_index
-            move=DCTMOVES[difference]
-            moves.append(move)
+    if path!="X": #makes sure the path is solvable
+      if [start]!=path:#makes sure the path is more than length 1
+        for i,step in enumerate(path[:-1]): #tracks every move up until the last move, the last move is just goal so we dont need to track a move after the goal
+            under_index=path[i+1].index("_") #gets index of the underscore in the next move
+            prev_under_index=path[i].index("_")#gets current underscore index
+            difference=under_index-prev_under_index #gets difference
+            move=DCTMOVES[difference]#uses the handy dandy LOOK-UP table!
+            moves.append(move)#appends to the moves list
 
-        string_moves="".join(moves)            
+        string_moves="".join(moves) # prints the moves
         print(f"{start}: {string_moves}")
         return
-      print(f"{start}: G")
+      print(f"{start}: G")#length one so G
       return
 
-    print(f"{start}: {path}")
+    print(f"{start}: {path}") #impossible so x
 
 GOAL=pzls[0]
 WIDTH,HEIGHT=dimensions(len(GOAL)) # get the dimension of the grid using a custom helper method
-DCTMOVES={-1:"L", 1:"R",-WIDTH:"U",WIDTH:"D",0:""}
-
-def start_puzzle(pzl,goal):#method that handles one puzzle at a time
-  '''if not inversions(pzl,goal): #if different parity, no solution should be found
-    DRUL([pzl]) #prints only the start, the time, and the steps associated with no solution
-  else:#same parity, solution exists, so call method to find the path to the goal state
-    DRUL(BFS(pzl,goal)) # prints the BFS result of the inputs
-  '''
-  DRUL(aStar(pzl,goal))
-
+DCTMOVES={-1:"L", 1:"R",-WIDTH:"U",WIDTH:"D",0:""} # lookup table of difference between tiles that corresponds to a move, in DRUL notation
+GOAL_POS_CHARS = {char: (i // WIDTH, i % WIDTH) for i, char in enumerate(GOAL)} # lookup table of the row and column values for every character in goal state
+H_TABLE=build_h_table(GOAL) #lookup table that stores the precomputted manhattan distance that a specific tile would contribte to h if it was in that position
+NBRS=build_nbrs() #lookup table of a tiles index, returns a list of all indeces of possible neighbors
 
 if __name__=="__main__":
     goal=pzls[0]
     for pzl in pzls:
-        start_puzzle(pzl,goal)
-
-
+        DRUL(aStar(pzl,goal))
 
 # Charlie Price, 4, 2028
