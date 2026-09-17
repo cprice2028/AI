@@ -36,14 +36,17 @@ def dimensions(num:int):
     
  return (smallest_w,current_height)#return tuple of the dimensions
 
-def neighbors(puzzle):
-  upos=puzzle.index("_")
+def neighbors(puzzle,upos):
   return [neighbor_string(puzzle,upos,nbrpos) for nbrpos in NBRS[upos]] #list comprehension of all possible neighbors given the neighbors switch indeces in the lookup table
 
 def neighbor_string(puzzle, under_index, switch_index):
-  lst=[*puzzle]
+  #got rid of .join() overhead, saved ~6 seconds
+  if under_index<switch_index: 
+    return (puzzle[:under_index]+puzzle[switch_index]+puzzle[under_index+1:switch_index]+puzzle[under_index]+puzzle[switch_index+1:],under_index,switch_index) #order to return the neighbor state if underscore comes before the switch element
+  return (puzzle[:switch_index]+puzzle[under_index]+puzzle[switch_index+1:under_index]+puzzle[switch_index]+puzzle[under_index+1:],under_index,switch_index) #order to return the neighbor state if the underscore comes after the switch element
+  '''lst=[*puzzle]
   lst[under_index],lst[switch_index]=lst[switch_index],lst[under_index]#switches
-  return ("".join(lst),under_index,switch_index)#returns tuple, neighbor string, the tiles new index, the tiles old index
+  return ("".join(lst),under_index,switch_index)#returns tuple, neighbor string, the tiles new index, the tiles old index'''
 
 def aStar(root,goal):
   if not possible(root,goal): #checks inversions, if not possible return a path of "X"
@@ -51,22 +54,22 @@ def aStar(root,goal):
   starting_f=f_distance(root,goal,0) #finds f distance of the start
   starting_h=starting_f # starting f distance is just h because g is 0. (f=g+h) if g=0 because its at the root, then f=0+h, f=h
   openSet = [[] for _ in range(90)] # creates 90 buckets, as 90 is the max f value
-  openSet[starting_f].append((starting_f,starting_h,root,"-1")) #start the openset with all starting values
+  openSet[starting_f].append((starting_f,starting_h,root,"-1",root.index("_"))) #start the openset with all starting values, now we pass initial underscore possition and continue tracking from there
   closedSet={} #closed set of parents as values
   cur_f=starting_f #the current f is just the starting f at the start
   while True:
-    lowest_f,lowest_f_h,lowest_f_puzzle,lowest_f_parent=openSet[cur_f].pop() #gets all tuple values from the current f index, doesnt matter which tuple is popped as they have the same f value
+    lowest_f,lowest_f_h,lowest_f_puzzle,lowest_f_parent,lowest_f_under_index=openSet[cur_f].pop() #gets all tuple values from the current f index, doesnt matter which tuple is popped as they have the same f value
     if lowest_f_puzzle in closedSet: #if the puzzle state has already been discovered
       cur_f=find_best_f(openSet,cur_f) #update current f and continue
       continue
     closedSet[lowest_f_puzzle]=lowest_f_parent # so now we have a parent for the current puzzle, we can add it to the closedSet
     if lowest_f_puzzle==goal: #if we found the goal
       return reconstruct_path(closedSet,lowest_f_puzzle,root) #return the path list, calling the method
-    for nbr,new_index,old_index in neighbors(lowest_f_puzzle):#get the neighbors of the current puzzle
+    for nbr,new_index,old_index in neighbors(lowest_f_puzzle,lowest_f_under_index):#get the neighbors of the current puzzle
       if nbr not in closedSet: #if we haveent already discovered the neighbor
         newH = lowest_f_h - H_TABLE[nbr[new_index]][old_index] + H_TABLE[nbr[new_index]][new_index] #calculate the new h, which is the previous h value - what the moved tile previously contributed to h + what the moved tile is now contributing to h
         newF = lowest_f-lowest_f_h + 1 + newH #calculate new F, so current f - current H gets current g. if you add one to the g and add the new H, you get the accurate new F value
-        openSet[newF].append((newF, newH, nbr, lowest_f_puzzle))#now in the new fs bucket add the neighbor and its corresponding elements
+        openSet[newF].append((newF, newH, nbr, lowest_f_puzzle,old_index))#now in the new fs bucket add the neighbor and its corresponding elements
     cur_f=find_best_f(openSet,cur_f) #find next f
 
 def reconstruct_path(closedSet,lowest_f_puzzle,root):
