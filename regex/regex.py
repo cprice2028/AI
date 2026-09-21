@@ -1,12 +1,17 @@
 import sys; args=sys.argv[1:]
 index = int(args[0])
 regex_list=["" for _ in range(30)]
-regex_list.append(r"/^0$|^10[10]$/")
-regex_list.append(r"/^[01]*$/")
-regex_list.append(r"/.*?0$/")
-regex_list.append(r"/\w[aeiou][aeiou]\b/")
+regex_list.append(r"/^0$|^10[10]$/")#30
+regex_list.append(r"/^[01]*$/")#31
+regex_list.append(r"/.*?0$/")#32
+regex_list.append(r"/\w*?[aeiou]\w*?[aeiou]\w*?\b/i")#33
+regex_list.append(r"/^1[01]*0$|^0$/")#34
+regex_list.append(r"/^[01]*?110[01]*$/")#35
+regex_list.append(r"/^.{2,4}$/s")#36
+regex_list.append(r"/^\s*\d{3}\s*-?\s*\d{2}\s*-?\s*\d{4}\s*$/")#37
+regex_list.append(r"/^\b.*?d\w*/mi")#38
+regex_list.append(r"/^1[01]*1$|^0[01]*0$|^[10]?$/")#39
 print(regex_list[index])
-
 
 '''
 30: Determine whether a string is either 0, 100, or 101.
